@@ -3,6 +3,11 @@ name = "rust-url-shortener"
 version = "0.1.0"
 edition = "2021"
 
+
+[features]
+hydrate = ["leptos/hydrate", "leptos_meta/hydrate"]
+ssr = ["leptos/ssr", "leptos_meta/ssr"]
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
@@ -11,6 +16,31 @@ leptos = "0.4.2"
 leptos_axum = "0.4.2"
 leptos_meta = "0.4.2"
 rusqlite = "0.29.0"
+serde = "1.0.171"
 tokio = "1.29.1"
 tracing = "0.1.37"
 tracing-subscriber = "0.3.17"
+
+[package.metadata.cargo-all-features]
+denylist = ["axum", "tokio", "leptos_axum"]
+skip_feature_sets = [["csr", "ssr"], ["csr", "hydrate"], ["ssr", "hydrate"]]
+
+[package.metadata.leptos]
+# The environment Leptos will run in, usually either "DEV" or "PROD"
+env = "DEV"
+# The features to use when compiling the bin target
+#
+# Optional. Can be over-ridden with the command line parameter --bin-features
+bin-features = ["ssr"]
+# If the --no-default-features flag should be used when compiling the bin target
+#
+# Optional. Defaults to false.
+bin-default-features = false
+# The features to use when compiling the lib target
+#
+# Optional. Can be over-ridden with the command line parameter --lib-features
+lib-features = ["ssr"]
+# If the --no-default-features flag should be used when compiling the lib target
+#
+# Optional. Defaults to false.
+lib-default-features = false

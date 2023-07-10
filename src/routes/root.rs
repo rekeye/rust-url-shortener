@@ -5,7 +5,7 @@ use leptos::{
     ssr::render_to_string,
 };
 
-use crate::meta::Metadata;
+use crate::components::meta::Metadata;
 
 pub async fn root() -> Html<String> {
     let html = render_to_string(|cx| view! {

@@ -1,19 +1,22 @@
+mod api;
+mod routes;
+mod components;
+
 use axum::{
     Router,
     http::StatusCode,
-    routing::get,
+    routing::{get,post},
     response::{
         Response,
         IntoResponse,
     }
 };
 use std::net::SocketAddr;
-use rusqlite::Connection;
 
-mod root;
-mod meta;
-
-use crate::root::root;
+use crate::{
+    routes::root::root,
+    api::connect_db,
+};
 
 #[tokio::main]
 async fn main() {
@@ -23,7 +26,8 @@ async fn main() {
 
     let app = Router::new()
         .route("/", get(root))
-        .route("/styles.css", get(styles));
+        .route("/styles.css", get(styles))
+        .route("/api/*fn_name", post(leptos_axum::handle_server_fns));
 
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
     tracing::debug!("listening on {}", addr);
@@ -41,16 +45,3 @@ async fn styles() -> impl IntoResponse {
         .unwrap();
 }
 
-async fn connect_db() -> Result<Connection, Box<dyn std::error::Error>> {
-    let conn = Connection::open("../data.sqlite")?;
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS urls (
-             id INTEGER PRIMARY KEY,
-             url TEXT NOT NULL,
-             hash TEXT NOT NULL,
-             used_count INTEGER NOT NULL
-         )",
-        (),
-    )?;
-    return Ok(conn);
-}
