@@ -1758,7 +1758,9 @@ dependencies = [
  "axum",
  "leptos",
  "leptos_axum",
+ "leptos_meta",
  "tokio",
+ "tracing",
  "tracing-subscriber",
 ]
 
