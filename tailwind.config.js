@@ -1,3 +1,1 @@
-module.exports = {
-  content: ["src/*.rs"],
-};
+module.exports = { content: ["./src/**/*.{html,rs}"], theme: { extend: {} }, plugins: [] };
