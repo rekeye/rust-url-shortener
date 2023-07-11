@@ -1,0 +1,21 @@
+[tasks.compile]
+dependencies = ["tailwind", "build"]
+
+[tasks.tailwind]
+command = "npx"
+args = [
+	"tailwindcss",
+	"-i",
+	"./style/tailwind.css",
+	"-o",
+	"./style/output.css",
+]
+
+[tasks.build]
+command = "cargo"
+args = [
+	"run",
+	"--features",
+	"ssr"
+]
+

@@ -37,11 +37,11 @@ async fn main() {
         .unwrap();
 }
 
-async fn styles() -> impl IntoResponse {
+async fn styles() -> impl IntoResponse {    
     return Response::builder()
         .status(StatusCode::OK)
         .header("Content-Type", "text/css")
-        .body(include_str!("../style/output.css").to_owned())
+        .body(load_file::load_str!("../style/output.css").to_owned())
         .unwrap();
 }
 

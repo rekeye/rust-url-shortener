@@ -1260,6 +1260,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ef53942eb7bf7ff43a617b3e2c1c4a5ecf5944a7c1bc12d7ee39bbb15e5c1519"
 
 [[package]]
+name = "load_file"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "31da4bce62428941030036a44d0d4b123f031b04080f8aeb44248b41de3e79cd"
+
+[[package]]
 name = "lock_api"
 version = "0.4.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1859,13 +1865,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "rust-url-shortener"
+name = "rust_url_shortener"
 version = "0.1.0"
 dependencies = [
  "axum",
  "leptos",
  "leptos_axum",
  "leptos_meta",
+ "load_file",
  "rand",
  "rusqlite",
  "serde",
