@@ -2,6 +2,7 @@
 name = "rust_url_shortener"
 version = "0.1.0"
 edition = "2021"
+authors = ["Szymon Paluch"]
 
 [features]
 hydrate = ["leptos/hydrate", "leptos_meta/hydrate"]

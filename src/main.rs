@@ -15,7 +15,11 @@ use std::net::SocketAddr;
 
 use crate::{
     routes::root::root,
-    api::connect_db,
+    api::{
+        connect_db,
+        get_url,
+        create_hash
+    }
 };
 
 #[tokio::main]
@@ -27,7 +31,8 @@ async fn main() {
     let app = Router::new()
         .route("/", get(root))
         .route("/styles.css", get(styles))
-        .route("/api/*fn_name", post(leptos_axum::handle_server_fns));
+        .route("/api/get-url/:hash", get(get_url))
+        .route("/api/create-hash", post(create_hash));
 
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
     tracing::debug!("listening on {}", addr);

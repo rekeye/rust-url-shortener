@@ -1,11 +1,15 @@
-use rusqlite::{Connection, params};
-use leptos::{server, ServerFnError};
+use axum::{
+    extract::Path,
+    http::StatusCode,
+    response::{Html, Json}
+};
+use rusqlite::{Connection};
 use serde::{Serialize, Deserialize};
 
-const SELECT_QUERY: &'static str = "SELECT * FROM urls WHERE hash = ?";
-const INSERT_QUERY: &'static str = "INSERT INTO users (url, hash, used_count) VALUES (?, ?, 0)";
+const SELECT_QUERY: &'static str = "SELECT url FROM urls WHERE hash = :hash";
+const INSERT_QUERY: &'static str = "INSERT INTO urls (url, hash, used_count) VALUES (:url, :hash, 0) ON CONFLICT DO NOTHING";
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize,)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 struct Url {
     id: u16,
     url: String,
@@ -13,7 +17,12 @@ struct Url {
     used_count: u16
 }
 
-pub async fn connect_db() -> Result<Connection, ServerFnError> {
+#[derive(serde::Serialize)]
+pub struct ErrorResponse {
+    error: String,
+}
+
+pub async fn connect_db() -> Result<Connection, Box<dyn std::error::Error>> {
     let connection = Connection::open("../data.sqlite")?;
     connection.execute(
         "CREATE TABLE IF NOT EXISTS urls (
@@ -24,43 +33,88 @@ pub async fn connect_db() -> Result<Connection, ServerFnError> {
          )",
         (),
     )?;
+
     return Ok(connection);
 }
 
-#[server(GetUrl, "/api", "GetJson")]
-pub async fn get_url(hash: String) -> Result<String, ServerFnError> {
-    let connection = connect_db().await?;
-    
-    let mut statement = connection.prepare(SELECT_QUERY)?;
-    let mut query_result = statement.query(params![hash])?;
-    let first_row = query_result.next()?;
-    let url: String = first_row.expect("url not found").get(1)?;
+pub async fn get_url(Path(hash): Path<String>) -> Result<Html<String>, (StatusCode, Json<ErrorResponse>)> {
+    println!("hash: {:?}", &[(":hash", &hash)]);
 
-    return Ok(url);
+    let connection = connect_db()
+        .await
+        .map_err(|e| {
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
+                error: format!("Failed to connect to database: {}", e),
+            }))
+        })?;
+    println!("connection: {:?}", connection);
+
+    let mut statement = connection
+        .prepare(SELECT_QUERY)
+        .map_err(|e| {
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
+                error: format!("Failed to prepare statement: {}", e),
+            }))
+        })?;
+    println!("statement: {:?}", statement);
+
+    let query_result = statement
+        .query_row(&[(":hash", &hash)], |row| {
+            Ok(row.get(0).expect("url not found"))
+        })
+        .map_err(|e| {
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
+                error: format!("Failed to execute query: {}", e),
+            }))
+        })?;
+
+    return Ok(Html(query_result));
 }
 
-#[server(GenerateUrl, "/api")]
-pub async fn generate_url(input_url: String) -> Result<String, ServerFnError> {
-    let connection = connect_db().await?;
+pub async fn create_hash(input_url: String) -> Result<Html<String>, (StatusCode, Json<ErrorResponse>)> {
+    let connection = connect_db().await.map_err(|e| {
+        (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
+            error: format!("Failed to connect to database: {}", e),
+        }))
+    })?;
 
     let mut hash = get_random_hash();
     loop {
-        let mut select_statement = connection.prepare(SELECT_QUERY)?;
-        let mut query_result = select_statement.query(params![&hash])?;
+        let mut select_statement = connection.prepare(SELECT_QUERY).map_err(|e| {
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
+                error: format!("Failed to prepare statement: {}", e),
+            }))
+        })?;
 
-        if query_result.next()?.is_none() {
+        let mut query_result = select_statement.query([&hash]).map_err(|e| {
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
+                error: format!("Failed to execute query: {}", e),
+            }))
+        })?;
+
+        if query_result.next().map_err(|e| {
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
+                error: format!("Failed to fetch result: {}", e),
+            }))
+        })?.is_none() {
             break;
         }
-
         hash = get_random_hash();
     }
 
-    let mut insert_statement = connection.prepare(INSERT_QUERY)?;
-    let mut query_result = insert_statement.query(params![input_url, hash])?;
-    let first_row = query_result.next()?;
-    let url: String = first_row.expect("url not found").get(1)?;
+    let mut insert_statement = connection.prepare(INSERT_QUERY).map_err(|e| {
+        (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
+            error: format!("Failed to prepare statement: {}", e),
+        }))
+    })?;
+    
+    let _ = insert_statement.query(&[(":url", &input_url), (":hash", &hash)]).map_err(|e| {
+        (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
+            error: format!("Failed to execute query: {}", e),
+        }))
+    })?;
 
-    return Ok(url);
+    Ok(Html(hash))
 }
 
 fn get_random_hash() -> String {
