@@ -91,7 +91,12 @@ pub async fn create_hash(Json(body): Json<CreateHashRequestBody>) -> Result<Html
     match query_result {
         Some(query_result) => {
             return Ok(Html(format!(
-                "<div class='w-full px-6 py-2 rounded-lg shadow bg-white'>{}/{}</div>", URL, query_result
+                r#"
+                    <div class="flex flex-col gap-4">
+                        <h2>Here's your shortened url</h2>
+                        <div class='w-full px-6 py-2 rounded-lg shadow bg-white'>{}/{}</div>
+                    </div>
+                "#, URL, query_result
             )));
         }
         None => {

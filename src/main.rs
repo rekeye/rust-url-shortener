@@ -11,6 +11,7 @@ use axum::{
         IntoResponse,
     }
 };
+use tower_http::services::ServeDir;
 use std::net::SocketAddr;
 
 use crate::{
@@ -28,11 +29,14 @@ async fn main() {
 
     let _conn = connect_db().await.expect("couldn't connect to db");
 
+    let serve_dir = ServeDir::new("assets");
+
     let app = Router::new()
         .route("/", get(root))
         .route("/:hash", get(redirect))
         .route("/styles.css", get(styles))
-        .route("/api/create-hash", post(create_hash));
+        .route("/api/create-hash", post(create_hash))
+        .nest_service("/assets", serve_dir.clone());
 
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
     tracing::debug!("listening on {}", addr);
