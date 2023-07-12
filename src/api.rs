@@ -1,12 +1,14 @@
 use axum::{
     extract::Path,
     http::StatusCode,
-    response::{Html, Json}
+    response::{Html, Json, Redirect}
 };
-use rusqlite::Connection;
+use rusqlite::{Connection, OptionalExtension};
 use serde::{Serialize, Deserialize};
 
-const SELECT_QUERY: &'static str = "SELECT url FROM urls WHERE hash = :hash";
+const URL: &'static str = "http://localhost:3000";
+pub const SELECT_URL_QUERY: &'static str = "SELECT url FROM urls WHERE hash = :hash";
+const SELECT_HASH_QUERY: &'static str = "SELECT hash FROM urls WHERE url = :url";
 const INSERT_QUERY: &'static str = "INSERT INTO urls (url, hash, used_count) VALUES (:url, :hash, 0)";
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -20,6 +22,11 @@ struct Url {
 #[derive(serde::Serialize)]
 pub struct ErrorResponse {
     error: String,
+}
+
+#[derive(serde::Deserialize)]
+pub struct CreateHashRequestBody {
+    input_url: String,
 }
 
 pub async fn connect_db() -> Result<Connection, Box<dyn std::error::Error>> {
@@ -37,7 +44,7 @@ pub async fn connect_db() -> Result<Connection, Box<dyn std::error::Error>> {
     return Ok(connection);
 }
 
-pub async fn get_url(Path(hash): Path<String>) -> Result<Html<String>, (StatusCode, Json<ErrorResponse>)> {
+pub async fn redirect(Path(hash): Path<String>) -> Result<Redirect, (StatusCode, Json<ErrorResponse>)> {
     let connection = connect_db()
         .await
         .map_err(|e| {
@@ -46,8 +53,8 @@ pub async fn get_url(Path(hash): Path<String>) -> Result<Html<String>, (StatusCo
             }))
         })?;
 
-    let query_result = connection
-        .query_row(SELECT_QUERY, &[(":hash", &hash)], |row| {
+    let query_result: String = connection
+        .query_row(SELECT_URL_QUERY, &[(":hash", &hash)], |row| {
             Ok(row.get(0).expect("url not found"))
         })
         .map_err(|e| {
@@ -56,10 +63,12 @@ pub async fn get_url(Path(hash): Path<String>) -> Result<Html<String>, (StatusCo
             }))
         })?;
 
-    return Ok(Html(query_result));
+    return Ok(Redirect::to(&query_result.to_string()));
 }
 
-pub async fn create_hash(input_url: String) -> Result<Html<String>, (StatusCode, Json<ErrorResponse>)> {
+pub async fn create_hash(Json(body): Json<CreateHashRequestBody>) -> Result<Html<String>, (StatusCode, Json<ErrorResponse>)> {
+    let input_url = body.input_url;
+
     let connection = connect_db()
         .await
         .map_err(|e| {
@@ -68,37 +77,59 @@ pub async fn create_hash(input_url: String) -> Result<Html<String>, (StatusCode,
             }))
         })?;
 
-    let mut hash = get_random_hash();
-    loop {
-        let mut select_statement = connection
-            .prepare(SELECT_QUERY)
-            .map_err(|e| {
-                (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
-                    error: format!("Failed to prepare statement: {}", e),
-                }))
-            })?;
-
-        let hash_exists = select_statement
-            .exists(&[(":hash", &hash)])
-            .map_err(|e| {
-                (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
-                    error: format!("Failed to execute query: {}", e),
-                }))
-            })?;
-
-        if !hash_exists { break; }
-        hash = get_random_hash();
-    }
-    
-    connection
-        .execute(INSERT_QUERY, &[(":url", &input_url), (":hash", &hash)])
+    let query_result: Option<String> = connection
+        .query_row(SELECT_HASH_QUERY, &[(":url", &input_url)], |row| {
+            Ok(row.get(0).expect("url not found"))
+        })
+        .optional()
         .map_err(|e| {
             (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
                 error: format!("Failed to execute query: {}", e),
             }))
         })?;
 
-    Ok(Html(hash))
+    match query_result {
+        Some(query_result) => {
+            return Ok(Html(format!(
+                "<div class='w-full px-6 py-2 rounded-lg shadow bg-white'>{}/{}</div>", URL, query_result
+            )));
+        }
+        None => {
+            let mut hash = get_random_hash();
+            loop {
+                let mut select_statement = connection
+                    .prepare(SELECT_URL_QUERY)
+                    .map_err(|e| {
+                        (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
+                            error: format!("Failed to prepare statement: {}", e),
+                        }))
+                    })?;
+
+                let hash_exists = select_statement
+                    .exists(&[(":hash", &hash)])
+                    .map_err(|e| {
+                        (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
+                            error: format!("Failed to execute query: {}", e),
+                        }))
+                    })?;
+
+                if !hash_exists { break; }
+                hash = get_random_hash();
+            }
+            
+            connection
+                .execute(INSERT_QUERY, &[(":url", &input_url), (":hash", &hash)])
+                .map_err(|e| {
+                    (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorResponse {
+                        error: format!("Failed to execute query: {}", e),
+                    }))
+                })?;
+
+            let html = format!("<div class='w-full px-6 py-2 rounded-lg shadow bg-white'>{}/{}</div>", URL, hash);
+
+            return Ok(Html(html));
+        }
+    }
 }
 
 fn get_random_hash() -> String {
